@@ -8,11 +8,14 @@ import json
 
 import colorama as cm
 
+
 #from Libraries.Enums import Enums as en
 #from Libraries.ParseXml import XmlDictConfig
 #from xml.etree import ElementTree
 
 from Libraries.Timer import Timer
+from Libraries.SX5_Manager import SX5_Manager
+from adb_shell import exceptions
 
 class MainStateEnum:
     MAIN_STATE_INIT = "init"
@@ -38,12 +41,16 @@ class Main(object):
             "log_files": {}
         }
 
+        self._sx5: SX5_Manager
+
+        self._global_timer: Timer
+
         # State Machine
         self._main_state_fun_dict = {
             MainStateEnum.MAIN_STATE_INIT: self._init_state_manager,
             MainStateEnum.MAIN_STATE_CREATE_FOLDER: self._create_folder_state_manager,
             MainStateEnum.MAIN_STATE_ADB_CONNECT: self._adb_connect_state_manager,
-            MainStateEnum.MAIN_STATE_DMESG: self._main_state_dmesg_manager,
+            MainStateEnum.MAIN_STATE_DMESG: self._dmesg_state_manager,
             MainStateEnum.MAIN_STATE_STOP: self._stop_state_manager,
             MainStateEnum.MAIN_STATE_EXIT: self._exit_state_manager
         }
@@ -90,8 +97,13 @@ class Main(object):
         print(cm.Fore.MAGENTA + " ------------------------------------------------------------ ")
         print(cm.Fore.MAGENTA + " ----------------- WELCOME TO DMESG LOGGER! ----------------- ")
         print(cm.Fore.MAGENTA + " ------------------------------------------------------------ ")
+        
+        self._sx5.init()
 
-        self._go_to_next_state (MainStateEnum.MAIN_STATE_CREATE_FOLDER)
+        self._global_timer.start()
+
+        # Go to create folder state
+        self._go_to_next_state(MainStateEnum.MAIN_STATE_CREATE_FOLDER)
         return
     
     def _create_folder_state_manager(self):
@@ -108,17 +120,23 @@ class Main(object):
         os.mkdir(self._log_file_dict["storage"])
         
         # Create log files
+        self._log_file_dict["log_files"].update({"raw": f'{self._log_file_dict["storage"]}/RawLog.txt'})
+        os.mkdir(self._log_file_dict["log_files"]["raw"])
+
         for key,value in self._main_config_dict["log"].items():
             if value == True:
-                self._log_file_dict["log_files"].update({key: f'{ self._log_file_dict["storage"]}/{key}.txt'})
+                self._log_file_dict["log_files"].update({key: f'{self._log_file_dict["storage"]}/{key}.txt'})
                 os.mkdir(self._log_file_dict["log_files"][key])
 
-
-        self._go_to_next_state(MainStateEnum.MAIN_STATE_ADB_CONNECT)
+        # Go to ADB connect state
+        #self._go_to_next_state(MainStateEnum.MAIN_STATE_ADB_CONNECT)
+        
+        # Go to dmesg state manager
+        self._go_to_next_state(MainStateEnum.MAIN_STATE_DMESG)
         return
-
-    def _adb_connect_state_manager(self):
-        """"""
+    
+    def _adb_connect_state_manager(self): # TODO ELIMINARE !?
+        """"""        
         count = 0
         res = -1
         num_of_try = 60
@@ -155,12 +173,34 @@ class Main(object):
         
         return
 
-    def _main_state_dmesg_manager(self):
+    def _dmesg_state_manager(self):
         """"""
+        dmesg = ""
 
+        try:            
+            dmesg = self._sx5.read_dmesg()
+        except exceptions.TcpTimeoutException: 
+            # Go to stop state
+            self._go_to_next_state(MainStateEnum.MAIN_STATE_STOP)
+        else:
+            # Update raw log file
+            raw_log = open(file=self._log_file_dict['log_files']['raw'], mode='a', newline='')
+            raw_log.write(dmesg)
+            raw_log.close()
 
+            # Update single log files            
+            for keyword in self._log_file_dict['log_files'].keys():
+                # Open log file that correspond to keyword
+                log_file = open(file=self._log_file_dict['log_files'][keyword], mode='a', newline='')
 
-        self._go_to_next_state(MainStateEnum.MAIN_STATE_STOP)
+                for line in raw_log.split('\n'):
+                    if line.find(keyword):
+                        # If there is the keyword, update the log with the corresponding line
+                        log_file.write(line)
+                        
+                # Close the log file
+                log_file.close()
+                    
         return
 
     def _stop_state_manager(self):
@@ -201,18 +241,19 @@ class Main(object):
 
     def run(self):
         """ Main Application """
-
+        
         # Init
         self._init_state_manager()
-
+        
         while not (self._main_state == MainStateEnum.MAIN_STATE_STOP and
                    self._last_main_state == MainStateEnum.MAIN_STATE_STOP):
+            
+            if self._global_timer.elapsed_time_s() >= 1:
+                # Store the last state machine state
+                #self._store_last_state()
 
-            # Store the last state machine state
-            #self._store_last_state()
-
-            # Run state machine at current state
-            self._main_state_machine_manager()
+                # Run state machine at current state
+                self._main_state_machine_manager()
       
 if __name__ == "__main__":    
     test = Main()
