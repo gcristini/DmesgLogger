@@ -1,0 +1,14 @@
+{
+    "device":
+    {
+        "name":"B20P25802",
+        "ip":"",
+        "port":""
+    },
+    "log":
+    {
+        "init": true,
+        "i2c": false,
+        "uart": true
+    }
+}
