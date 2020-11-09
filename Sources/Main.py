@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 
 import sys
 import os
@@ -109,7 +108,7 @@ class Main(object):
     def _create_folder_state_manager(self):
         """"""
         # Create storage directory adding _n if already exists
-        self._log_file_dict["storage"] = f'{os.getcwd()}/{self._main_config_dict["device"]["name"]}'       
+        self._log_file_dict["storage"] = f'{os.getcwd()}\{self._main_config_dict["device"]["name"]}'       
         if os.path.isdir(self._log_file_dict["storage"]):
             for n in range (1, 999):            
                 new_storage_folder = f'{self._log_file_dict["storage"]}_{n}'
@@ -120,13 +119,15 @@ class Main(object):
         os.mkdir(self._log_file_dict["storage"])
         
         # Create log files
-        self._log_file_dict["log_files"].update({"raw": f'{self._log_file_dict["storage"]}/RawLog.txt'})
-        os.mkdir(self._log_file_dict["log_files"]["raw"])
-
+        self._log_file_dict["log_files"].update({"raw": f'{self._log_file_dict["storage"]}\RawLog.txt'})
+        log_file = open(file=self._log_file_dict["log_files"]["raw"], mode='w')
+        log_file.close()
+        
         for key,value in self._main_config_dict["log"].items():
             if value == True:
-                self._log_file_dict["log_files"].update({key: f'{self._log_file_dict["storage"]}/{key}.txt'})
-                os.mkdir(self._log_file_dict["log_files"][key])
+                self._log_file_dict["log_files"].update({key: f'{self._log_file_dict["storage"]}\{key}.txt'})
+                log_file = open(file=self._log_file_dict["log_files"][key], mode='w')
+                log_file.close()
 
         # Go to ADB connect state
         #self._go_to_next_state(MainStateEnum.MAIN_STATE_ADB_CONNECT)
@@ -184,19 +185,19 @@ class Main(object):
             self._go_to_next_state(MainStateEnum.MAIN_STATE_STOP)
         else:
             # Update raw log file
-            raw_log = open(file=self._log_file_dict['log_files']['raw'], mode='a', newline='')
+            raw_log = open(file=self._log_file_dict['log_files']['raw'], mode='a', newline='\n')
             raw_log.write(dmesg)
             raw_log.close()
 
             # Update single log files            
-            for keyword in self._log_file_dict['log_files'].keys():
+            for keyword in list(self._log_file_dict['log_files'].keys())[1:]: 
                 # Open log file that correspond to keyword
-                log_file = open(file=self._log_file_dict['log_files'][keyword], mode='a', newline='')
+                log_file = open(file=self._log_file_dict['log_files'][keyword], mode='a', newline='\n')
 
-                for line in raw_log.split('\n'):
-                    if line.find(keyword):
+                for line in dmesg.split('\n'):
+                    if line.find(keyword) != -1:
                         # If there is the keyword, update the log with the corresponding line
-                        log_file.write(line)
+                        log_file.write(f'{line}\n')
                         
                 # Close the log file
                 log_file.close()
@@ -233,7 +234,12 @@ class Main(object):
 
         # Parse config file 
         self._parse_config_file()
-        
+
+        # Instances
+        self._sx5 = SX5_Manager()
+        self._global_timer = Timer()
+
+        # Variables initialization
         self._main_state = MainStateEnum.MAIN_STATE_INIT
         self._last_main_state = MainStateEnum.MAIN_STATE_INIT
     

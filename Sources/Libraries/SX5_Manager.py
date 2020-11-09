@@ -110,7 +110,8 @@ class SX5_Manager(object):
 
         while attempt_count < max_attempt:
             try:
-                stdout = self._sx5_device.shell(cmd)
+                #stdout = self._sx5_device.shell(cmd)
+                stdout=subprocess.run(f'adb shell "{cmd}"', text=True, capture_output=True).stdout
             except:
                 # Try to establish a new connection if no response...
                 try:
@@ -134,11 +135,11 @@ class SX5_Manager(object):
 
         return stdout
 
-    def read_dmesg(self, value: str):
+    def read_dmesg(self):
         """ """
         # TODO fare check
         #stdout = self._read_shell('adb shell "dmesg -c -T"')
-        stdout = self._read_shell('dmesg -c -T')
+        stdout = self._read_shell('dmesg -c')
 
         return stdout
         

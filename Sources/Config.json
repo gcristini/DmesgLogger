@@ -1,14 +1,15 @@
 {
     "device":
     {
-        "name":"B20P25802",
-        "ip":"",
-        "port":""
+        "name":"d77068f6",
+        "ip":"10.139.132.29",
+        "port":"5555"
     },
     "log":
     {
-        "init": true,
-        "i2c": false,
-        "uart": true
+        "sdm660-pinctrl": true,
+        "arm-smmu": true,
+        "usbcore": true,
+        "wlan": true
     }
 }
