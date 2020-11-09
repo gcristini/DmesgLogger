@@ -139,7 +139,7 @@ class SX5_Manager(object):
         """ """
         # TODO fare check
         #stdout = self._read_shell('adb shell "dmesg -c -T"')
-        stdout = self._read_shell('dmesg -c')
+        stdout = self._read_shell('dmesg -c -T')
 
         return stdout
         

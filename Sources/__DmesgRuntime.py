@@ -18,8 +18,7 @@ from adb_shell import exceptions
 
 class MainStateEnum:
     MAIN_STATE_INIT = "init"
-    MAIN_STATE_CREATE_FOLDER = "create_folder"
-    MAIN_STATE_ADB_CONNECT = "adb_connect"
+    MAIN_STATE_CREATE_FOLDER = "create_folder"    
     MAIN_STATE_DMESG = "dmesg"
     MAIN_STATE_STOP = "stop"
     MAIN_STATE_EXIT = "exit"
@@ -47,8 +46,7 @@ class Main(object):
         # State Machine
         self._main_state_fun_dict = {
             MainStateEnum.MAIN_STATE_INIT: self._init_state_manager,
-            MainStateEnum.MAIN_STATE_CREATE_FOLDER: self._create_folder_state_manager,
-            MainStateEnum.MAIN_STATE_ADB_CONNECT: self._adb_connect_state_manager,
+            MainStateEnum.MAIN_STATE_CREATE_FOLDER: self._create_folder_state_manager,            
             MainStateEnum.MAIN_STATE_DMESG: self._dmesg_state_manager,
             MainStateEnum.MAIN_STATE_STOP: self._stop_state_manager,
             MainStateEnum.MAIN_STATE_EXIT: self._exit_state_manager
@@ -73,8 +71,6 @@ class Main(object):
         with open("Config.json") as json_file:
             self._main_config_dict = json.load(json_file)
 
-        print (self._main_config_dict)
-                
         return
 
     # ------------------ STATE MACHINE ------------------ #
@@ -85,10 +81,14 @@ class Main(object):
 
         # Go to next state
         self._main_state = state
+
         return
 
     def _store_last_state(self):
+        """"""
+        # Store last state
         self._last_main_state = self._main_state
+
         return
 
     def _init_state_manager(self):
@@ -102,13 +102,15 @@ class Main(object):
         self._global_timer.start()
 
         # Go to create folder state
+        self._store_last_state()
         self._go_to_next_state(MainStateEnum.MAIN_STATE_CREATE_FOLDER)
+
         return
     
     def _create_folder_state_manager(self):
         """"""
         # Create storage directory adding _n if already exists
-        self._log_file_dict["storage"] = f'{os.getcwd()}\{self._main_config_dict["device"]["name"]}'       
+        self._log_file_dict["storage"] = f'{os.getcwd()}/{self._main_config_dict["device"]["name"]}'       
         if os.path.isdir(self._log_file_dict["storage"]):
             for n in range (1, 999):            
                 new_storage_folder = f'{self._log_file_dict["storage"]}_{n}'
@@ -119,88 +121,54 @@ class Main(object):
         os.mkdir(self._log_file_dict["storage"])
         
         # Create log files
-        self._log_file_dict["log_files"].update({"raw": f'{self._log_file_dict["storage"]}\RawLog.txt'})
+        self._log_file_dict["log_files"].update({"raw": f'{self._log_file_dict["storage"]}/RawLog.txt'})
         log_file = open(file=self._log_file_dict["log_files"]["raw"], mode='w')
         log_file.close()
         
         for key,value in self._main_config_dict["log"].items():
             if value == True:
-                self._log_file_dict["log_files"].update({key: f'{self._log_file_dict["storage"]}\{key}.txt'})
+                self._log_file_dict["log_files"].update({key: f'{self._log_file_dict["storage"]}/{key}.txt'})
                 log_file = open(file=self._log_file_dict["log_files"][key], mode='w')
                 log_file.close()
 
-        # Go to ADB connect state
-        #self._go_to_next_state(MainStateEnum.MAIN_STATE_ADB_CONNECT)
-        
         # Go to dmesg state manager
+        self._store_last_state()
         self._go_to_next_state(MainStateEnum.MAIN_STATE_DMESG)
         return
     
-    def _adb_connect_state_manager(self): # TODO ELIMINARE !?
-        """"""        
-        count = 0
-        res = -1
-        num_of_try = 60
-
-        # Start Timer
-        timer = Timer()
-        timer.start()
-
-        while (count < num_of_try):
-            if timer.elapsed_time_s(2) >= 1:
-                print("- Waiting for SX5 device " + "."*count, end='\r')
-                
-                # Run fake command to know if adb shell works
-                res = subprocess.run("adb shell date", text=True, capture_output=True)
-                
-                if res.stdout:
-                    timer.stop()
-                    break
-                else:
-                    timer.reset()
-
-                count += 1
-        
-        if not res.stdout:            
-            sys.stdout.write("\033[K")
-            print("No Device Found", end="\r")            
-
-        else:
-            sys.stdout.write("\033[K")
-            print ("SX5 Found", end = "\r")               
-        
-        # Go to Open Record App State
-        self._go_to_next_state(MainStateEnum.MAIN_STATE_DMESG)
-        
-        return
-
     def _dmesg_state_manager(self):
         """"""
-        dmesg = ""
-
-        try:            
-            dmesg = self._sx5.read_dmesg()
-        except exceptions.TcpTimeoutException: 
-            # Go to stop state
-            self._go_to_next_state(MainStateEnum.MAIN_STATE_STOP)
+        # Print...     
+        if (self._main_state == MainStateEnum.MAIN_STATE_DMESG and
+            self._last_main_state != MainStateEnum.MAIN_STATE_DMESG):
+            print ('- Polling dmesg...')
+            dmesg = ""
+            self._store_last_state()
         else:
-            # Update raw log file
-            raw_log = open(file=self._log_file_dict['log_files']['raw'], mode='a', newline='\n')
-            raw_log.write(dmesg)
-            raw_log.close()
+        
+            try:            
+                dmesg = self._sx5.read_dmesg()
+            except exceptions.TcpTimeoutException: 
+                # Go to stop state
+                self._go_to_next_state(MainStateEnum.MAIN_STATE_STOP)
+            else:
+                # Update raw log file
+                raw_log = open(file=self._log_file_dict['log_files']['raw'], mode='a', newline='\n')
+                raw_log.write(dmesg)
+                raw_log.close()
 
-            # Update single log files            
-            for keyword in list(self._log_file_dict['log_files'].keys())[1:]: 
-                # Open log file that correspond to keyword
-                log_file = open(file=self._log_file_dict['log_files'][keyword], mode='a', newline='\n')
+                # Update single log files            
+                for keyword in list(self._log_file_dict['log_files'].keys())[1:]: 
+                    # Open log file that correspond to keyword
+                    log_file = open(file=self._log_file_dict['log_files'][keyword], mode='a', newline='\n')
 
-                for line in dmesg.split('\n'):
-                    if line.find(keyword) != -1:
-                        # If there is the keyword, update the log with the corresponding line
-                        log_file.write(f'{line}\n')
-                        
-                # Close the log file
-                log_file.close()
+                    for line in dmesg.split('\n'):
+                        if line.find(f'{keyword}') != -1:
+                            # If there is the keyword, update the log with the corresponding line
+                            log_file.write(f'{line}\n')
+                            
+                    # Close the log file
+                    log_file.close()
                     
         return
 

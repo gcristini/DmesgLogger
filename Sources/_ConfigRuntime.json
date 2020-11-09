@@ -6,10 +6,16 @@
         "port":"5555"
     },
     "log":
-    {
-        "sdm660-pinctrl": true,
+    {        
         "arm-smmu": true,
+        "init": true,
+        "i2c_msm_v2": true,
+        "nq_nci": true,
+        "msm": true,
+        "PMI": true,
+        "sdm660-pinctrl": true,
         "usbcore": true,
+        "ueventd": true,
         "wlan": true
     }
 }

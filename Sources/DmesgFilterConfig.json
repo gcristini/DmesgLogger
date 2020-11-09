@@ -1,0 +1,14 @@
+{
+    "file":
+    {   
+        "folder_path": "C:\\Users\\gcristini\\OneDrive - Datalogic S.p.a\\Data\\PhytonWorkspace\\DmesgLogger\\Sources\\",
+        "input_file":"RawLog.txt",
+        "output_file":"LogFiltered.txt"
+    },
+
+    "keywords":
+    {        
+        "include": ["init", "msm_bus"],
+        "exclude": ["usbcore", "ueventd", "wlan", "dev_init"]
+    }
+}
