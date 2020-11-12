@@ -4,6 +4,7 @@ import os
 import subprocess
 import time
 import json
+from Libraries.Timer import Timer
 
 class MainStateEnum:
     MAIN_STATE_INIT = "init"    
@@ -21,7 +22,7 @@ class Main(object):
     def __init__(self):
         """ Constructor """
         
-        self._main_config_dict: dict
+        self._main_config_dict: dict        
         
         self._main_state_fun_dict = {
             MainStateEnum.MAIN_STATE_INIT: self._init_state_manager,
@@ -49,8 +50,17 @@ class Main(object):
         # Read .json configuration file and store data into dictionary
         with open("DmesgFilterConfig.json") as json_file:
             self._main_config_dict = json.load(json_file)
+            self._main_config_dict['file']['folder_path']=self._main_config_dict['file']['folder_path'].replace('\\', '/')
 
         return
+
+    @staticmethod
+    def _get_file_length(fname):
+        with open(file=fname, mode='r') as f:
+            for i, l in enumerate(f):
+                pass
+
+        return i + 1
 
     # ------------------ STATE MACHINE ------------------ #
     def _go_to_next_state(self, state):
@@ -71,13 +81,11 @@ class Main(object):
         return
 
     def _init_state_manager(self):
-        """"""
-                  
+        """"""                  
         # Go to dmesg filter state
         self._go_to_next_state(MainStateEnum.MAIN_STATE_DMESG_FILTER)
 
-        return
-    
+        return    
        
     def _dmesg_filter_state_manager(self):
         """"""        
@@ -90,18 +98,32 @@ class Main(object):
             res = input (f'{self._main_config_dict["file"]["output_file"]} already exist: subscribed? [y/n] ')
 
         if (res.upper() == "Y" or not os.path.isfile(output_dmesg_name)):
+            
+            # Get lenth of file
+            lines_tot = self._get_file_length(input_dmesg_name)
 
             with open (file=input_dmesg_name, mode='r') as input_dmesg, open(file=output_dmesg_name, mode='w', newline='\n') as output_dmesg:
-                while True:            
+                line_counter = -1
+                progressbar_timer = Timer()
+                progressbar_timer.start()
+                while True:
+                    line_counter +=1
+                    # Update progress bar every 100ms
+                    if progressbar_timer.elapsed_time_ms() >= 100:
+                        progress = round(100*line_counter/lines_tot)
+#                        progress = 11
+                        #print ('Processing... [' + '='*progress +   ' '*(100-progress) + '] ' + str(round(progress)) + '%', end='\r')
+                        print ('Processing... [' + chr(5)*progress + ' '*(100-progress) + ']'+ str(round(progress)) + '%', end='\r')
+                        progressbar_timer.reset()
+
                     # Read line from input dmesg
                     line = input_dmesg.readline()
-                    #print (line)        
-
+                    
                     # Looking for allowed keyword
                     for allowed_key in self._main_config_dict["keywords"]["include"]:
                         # If one of the allowed key is in the line...
                         if line.find(allowed_key) != -1:
-                            # Looking for denied keywords
+                            # Looking for denied keywordsy
                             for count, denied_key in enumerate(self._main_config_dict["keywords"]["exclude"]):
                                 if line.find(denied_key) != -1:
                                     break
@@ -116,9 +138,11 @@ class Main(object):
                     if not line:
                         break
             
+            # Go to stop state
             self._go_to_next_state(MainStateEnum.MAIN_STATE_STOP)
             
         elif res.upper() == "N":
+            # Go to exit state
             self._go_to_next_state(MainStateEnum.MAIN_STATE_EXIT)
         else:
             pass
@@ -127,14 +151,18 @@ class Main(object):
 
     def _stop_state_manager(self):
         """"""
-        print (f'Filtered dmesg saved in {self._main_config_dict["file"]["folder_path"] + self._main_config_dict["file"]["output_file"]}')
+        print (f'\n\nFiltered dmesg saved in {self._main_config_dict["file"]["folder_path"] + self._main_config_dict["file"]["output_file"]}')
+
+        # Store last state
         self._store_last_state()
         return
     
     def _exit_state_manager(self):
         """"""
-        input("Press enter to exit")
-        exit()
+        input("\nPress enter to exit")
+
+        # Exit from program
+        exit(1)
         return
     
     def _main_state_machine_manager(self):
